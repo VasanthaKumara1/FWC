@@ -16,6 +16,13 @@ let payrolls = [];
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
+// Simple root page to help browser previews (returns links to services)
+app.get('/', (req, res) => {
+  const apiBase = process.env.API_BASE || `http://localhost:${process.env.PORT || 5000}`;
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+  res.send(`<!doctype html><html><head><meta charset="utf-8"><title>FWC Backend</title></head><body style="font-family:Arial;padding:24px"><h1>FWC Backend</h1><p>This is the backend service. Useful links:</p><ul><li><a href="${apiBase}/health">/health</a></li><li><a href="${apiBase}/employees">/employees</a></li><li><a href="${apiBase}/payroll">/payroll</a></li><li><a href="${frontendUrl}" target="_blank">Frontend (3000)</a></li></ul></body></html>`);
+});
+
 // Generate payroll
 app.post('/payroll/generate', (req, res) => {
   const { month, year } = req.body || {};
