@@ -3,7 +3,22 @@ import useSWR from 'swr'
 const fetcher = (url) => fetch(url).then(r => r.json())
 
 export default function Home() {
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
+  const apiBase = (() => {
+    if (typeof window === 'undefined') {
+      return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
+    }
+
+    const host = window.location.host
+    if (host.includes('-3000.')) {
+      return `${window.location.protocol}//${host.replace('-3000.', '-5000.')}`
+    }
+
+    if (host.endsWith(':3000')) {
+      return `${window.location.protocol}//${host.replace(':3000', ':5000')}`
+    }
+
+    return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
+  })()
   const { data: health } = useSWR(`${apiBase}/health`, fetcher)
   const { data: employees } = useSWR(`${apiBase}/employees`, fetcher)
 
