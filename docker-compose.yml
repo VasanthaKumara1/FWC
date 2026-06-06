@@ -1,35 +1,90 @@
 version: '3.8'
+
 services:
-  mongo:
-    image: mongo:6.0
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: fwc-postgres
     restart: unless-stopped
     ports:
-      - "27017:27017"
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${DB_USER:-fwc_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-fwc_password}
+      POSTGRES_DB: ${DB_NAME:-fwc_hrms}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-fwc_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # Node.js Backend
   backend:
     build:
       context: ./backend
+      dockerfile: Dockerfile
+    container_name: fwc-backend
+    restart: unless-stopped
     ports:
       - "5000:5000"
     depends_on:
-      - mongo
+      postgres:
+        condition: service_healthy
     environment:
-      - MONGO_URL=mongodb://mongo:27017/fwc
+      NODE_ENV: production
+      PORT: 5000
+      DATABASE_URL: postgresql://${DB_USER:-fwc_user}:${DB_PASSWORD:-fwc_password}@postgres:5432/${DB_NAME:-fwc_hrms}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
+  # Next.js Frontend
   frontend:
     build:
-      context: ./frontend
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: fwc-frontend
+    restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:5000
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:5000}
+      NEXT_PUBLIC_ENV: production
     depends_on:
       - backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
+  # Python ML Services
   ml-services:
     build:
       context: ./ml-services
+      dockerfile: Dockerfile
+    container_name: fwc-ml-services
+    restart: unless-stopped
     ports:
       - "5001:5001"
+    environment:
+      FLASK_ENV: production
+      PORT: 5001
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
     depends_on:
       - backend
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  default:
+    name: fwc-network
